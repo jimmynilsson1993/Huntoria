@@ -194,7 +194,7 @@ transcendenceAvatarDuration = 7000
 bestiaryKillMultiplier = 1
 bosstiaryKillMultiplier = 1
 bestiaryRateCharmShopPrice  = 1.0
-boostedBossSlot = true
+boostedBossSlot = false
 boostedBossLootBonus = 250
 boostedBossKillBonus = 3
 

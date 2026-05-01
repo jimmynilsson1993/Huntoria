@@ -41,8 +41,6 @@ bool SpawnsMonster::loadFromXML(const std::string &filemonstername) {
 	this->filemonstername = filemonstername;
 	loaded = true;
 
-	std::string boostedNameGet = g_game().getBoostedMonsterName();
-
 	spawnMonsterList.reserve(100000);
 	for (const auto &spawnMonsterNode : doc.child("monsters").children()) {
 		Position centerPos(
@@ -357,9 +355,8 @@ bool SpawnMonster::addMonster(const std::string &name, const Position &pos, Dire
 	}
 
 	const uint32_t eventschedule = g_eventsScheduler().getSpawnMonsterSchedule();
-	const std::string boostedMonster = g_game().getBoostedMonsterName();
 	int32_t boostedrate = 1;
-	if (name == boostedMonster) {
+	if (g_game().isBoostedCreature(name)) {
 		boostedrate = 2;
 	}
 	auto rateSpawn = g_configManager().getNumber(RATE_SPAWN);

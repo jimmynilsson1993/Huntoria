@@ -9,6 +9,8 @@
 
 #pragma once
 
+#include <ranges>
+
 #include "creatures/appearance/outfit/outfit.hpp"
 #include "creatures/players/components/player_badge.hpp"
 #include "creatures/players/components/player_title.hpp"
@@ -420,13 +422,23 @@ public:
 		return BestiaryList;
 	}
 
-	void setBoostedName(std::string name) {
-		boostedCreature = name;
-		g_logger().info("Boosted creature: {}", name);
+	void setBoostedNames(std::vector<std::string> names) {
+		boostedCreatures = std::move(names);
+		for (const auto &name : boostedCreatures) {
+			g_logger().info("Boosted creature: {}", name);
+		}
 	}
 
 	std::string getBoostedMonsterName() const {
-		return boostedCreature;
+		return boostedCreatures.empty() ? std::string() : boostedCreatures.front();
+	}
+
+	const std::vector<std::string> &getBoostedMonsterNames() const {
+		return boostedCreatures;
+	}
+
+	bool isBoostedCreature(const std::string &name) const {
+		return std::ranges::find(boostedCreatures, name) != boostedCreatures.end();
 	}
 
 	bool canThrowObjectTo(const Position &fromPos, const Position &toPos, SightLines_t lineOfSight = SightLine_CheckSightLine, int32_t rangex = MAP_MAX_CLIENT_VIEW_PORT_X, int32_t rangey = MAP_MAX_CLIENT_VIEW_PORT_Y);
@@ -814,7 +826,7 @@ private:
 	std::map<Position, uint16_t> mapLuaItemsStored;
 
 	std::map<uint16_t, std::string> BestiaryList;
-	std::string boostedCreature;
+	std::vector<std::string> boostedCreatures;
 
 	std::vector<std::shared_ptr<Charm>> CharmList;
 

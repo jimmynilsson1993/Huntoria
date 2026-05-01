@@ -446,8 +446,8 @@ void Game::resetNpcs() const {
 void Game::loadBoostedCreature() {
 	auto &db = Database::getInstance();
 	const auto result = db.storeQuery(
-		"SELECT `date`, `boostname`, `raceid`, `looktype`, `lookfeet`, `looklegs`, `lookhead`, `lookbody`, `lookaddons`, `lookmount` "
-		"FROM `boosted_creature`"
+		"SELECT `slot`, `date`, `boostname`, `raceid`, `looktype`, `lookfeet`, `looklegs`, `lookhead`, `lookbody`, `lookaddons`, `lookmount` "
+		"FROM `boosted_creature` ORDER BY `slot` ASC"
 	);
 	if (!result) {
 		g_logger().warn("[Game::loadBoostedCreature] - "
@@ -455,16 +455,8 @@ void Game::loadBoostedCreature() {
 		return;
 	}
 
-	const auto date = result->getNumber<uint16_t>("date");
 	const auto now = getTimeNow();
 	tm* ltm = localtime(&now);
-
-	if (date == ltm->tm_mday) {
-		setBoostedName(result->getString("boostname"));
-		return;
-	}
-
-	const auto oldRace = result->getNumber<uint16_t>("raceid");
 	const auto &monsterlist = getBestiaryList();
 
 	struct MonsterRace {
@@ -472,52 +464,103 @@ void Game::loadBoostedCreature() {
 		std::string name;
 	};
 
-	MonsterRace selectedMonster;
-	if (!monsterlist.empty()) {
-		std::vector<MonsterRace> m_monsters;
-		for (const auto &[raceId, _name] : BestiaryList) {
-			if (raceId != oldRace) {
-				m_monsters.emplace_back(raceId, _name);
-			}
+	std::vector<MonsterRace> storedMonsters;
+	std::vector<uint16_t> oldRaces;
+	bool alreadyFresh = true;
+	do {
+		const auto raceId = result->getNumber<uint16_t>("raceid");
+		const auto boostName = result->getString("boostname");
+		const auto date = result->getNumber<uint16_t>("date");
+		if (date != ltm->tm_mday || raceId == 0 || boostName.empty() || boostName == "default") {
+			alreadyFresh = false;
 		}
 
-		if (!m_monsters.empty()) {
-			selectedMonster = m_monsters[normal_random(0, m_monsters.size() - 1)];
+		if (raceId != 0 && !boostName.empty() && boostName != "default") {
+			storedMonsters.push_back({ raceId, boostName });
+			oldRaces.emplace_back(raceId);
 		}
-	}
+	} while (result->next());
 
-	if (selectedMonster.raceId == 0) {
-		g_logger().warn("[Game::loadBoostedCreature] - "
-		                "It was not possible to generate a new boosted creature->");
+	if (alreadyFresh && storedMonsters.size() >= 2 && storedMonsters[0].raceId != storedMonsters[1].raceId) {
+		std::vector<std::string> boostedNames;
+		boostedNames.reserve(2);
+		for (size_t i = 0; i < 2; ++i) {
+			boostedNames.emplace_back(storedMonsters[i].name);
+		}
+		setBoostedNames(boostedNames);
 		return;
 	}
 
-	const auto monsterType = g_monsters().getMonsterType(selectedMonster.name);
-	if (!monsterType) {
+	std::vector<MonsterRace> candidates;
+	candidates.reserve(monsterlist.size());
+	for (const auto &[raceId, name] : BestiaryList) {
+		if (std::ranges::find(oldRaces, raceId) == oldRaces.end()) {
+			candidates.emplace_back(raceId, name);
+		}
+	}
+
+	if (candidates.size() < 2) {
+		candidates.clear();
+		for (const auto &[raceId, name] : BestiaryList) {
+			candidates.emplace_back(raceId, name);
+		}
+	}
+
+	if (candidates.size() < 2) {
 		g_logger().warn("[Game::loadBoostedCreature] - "
-		                "It was not possible to generate a new boosted creature-> Monster '{}' not found.",
-		                selectedMonster.name);
+		                "It was not possible to generate two boosted creatures.");
 		return;
 	}
 
-	setBoostedName(selectedMonster.name);
-
-	auto query = std::string("UPDATE `boosted_creature` SET ")
-		+ "`date` = '" + std::to_string(ltm->tm_mday) + "',"
-		+ "`boostname` = " + db.escapeString(selectedMonster.name) + ","
-		+ "`looktype` = " + std::to_string(monsterType->info.outfit.lookType) + ","
-		+ "`lookfeet` = " + std::to_string(monsterType->info.outfit.lookFeet) + ","
-		+ "`looklegs` = " + std::to_string(monsterType->info.outfit.lookLegs) + ","
-		+ "`lookhead` = " + std::to_string(monsterType->info.outfit.lookHead) + ","
-		+ "`lookbody` = " + std::to_string(monsterType->info.outfit.lookBody) + ","
-		+ "`lookaddons` = " + std::to_string(monsterType->info.outfit.lookAddons) + ","
-		+ "`lookmount` = " + std::to_string(monsterType->info.outfit.lookMount) + ","
-		+ "`raceid` = '" + std::to_string(selectedMonster.raceId) + "'";
-
-	if (!db.executeQuery(query)) {
-		g_logger().warn("[Game::loadBoostedCreature] - "
-		                "Failed to detect boosted creature database. (CODE 02)");
+	std::vector<MonsterRace> selectedMonsters;
+	selectedMonsters.reserve(2);
+	while (selectedMonsters.size() < 2 && !candidates.empty()) {
+		const auto selectedIndex = static_cast<size_t>(normal_random(0, candidates.size() - 1));
+		selectedMonsters.emplace_back(candidates[selectedIndex]);
+		candidates.erase(candidates.begin() + static_cast<int64_t>(selectedIndex));
 	}
+
+	if (selectedMonsters.size() < 2) {
+		g_logger().warn("[Game::loadBoostedCreature] - "
+		                "It was not possible to generate two distinct boosted creatures.");
+		return;
+	}
+
+	std::vector<std::string> boostedNames;
+	boostedNames.reserve(2);
+	for (size_t slot = 0; slot < selectedMonsters.size(); ++slot) {
+		const auto &selectedMonster = selectedMonsters[slot];
+		const auto monsterType = g_monsters().getMonsterType(selectedMonster.name);
+		if (!monsterType) {
+			g_logger().warn("[Game::loadBoostedCreature] - "
+			                "It was not possible to generate a boosted creature-> Monster '{}' not found.",
+			                selectedMonster.name);
+			return;
+		}
+
+		boostedNames.emplace_back(selectedMonster.name);
+
+		auto query = std::string("REPLACE INTO `boosted_creature` (`slot`, `date`, `boostname`, `raceid`, `looktype`, `lookfeet`, `looklegs`, `lookhead`, `lookbody`, `lookaddons`, `lookmount`) VALUES (")
+			+ std::to_string(slot + 1) + ","
+			+ "'" + std::to_string(ltm->tm_mday) + "',"
+			+ db.escapeString(selectedMonster.name) + ","
+			+ "'" + std::to_string(selectedMonster.raceId) + "',"
+			+ std::to_string(monsterType->info.outfit.lookType) + ","
+			+ std::to_string(monsterType->info.outfit.lookFeet) + ","
+			+ std::to_string(monsterType->info.outfit.lookLegs) + ","
+			+ std::to_string(monsterType->info.outfit.lookHead) + ","
+			+ std::to_string(monsterType->info.outfit.lookBody) + ","
+			+ std::to_string(monsterType->info.outfit.lookAddons) + ","
+			+ std::to_string(monsterType->info.outfit.lookMount) + ")";
+
+		if (!db.executeQuery(query)) {
+			g_logger().warn("[Game::loadBoostedCreature] - "
+			                "Failed to update boosted creature slot {}. (CODE 02)", slot + 1);
+			return;
+		}
+	}
+
+	setBoostedNames(boostedNames);
 }
 
 void Game::start(ServiceManager* manager) {

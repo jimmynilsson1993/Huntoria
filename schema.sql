@@ -280,6 +280,7 @@ INSERT INTO `boosted_boss` (`boostname`, `date`, `raceid`) VALUES ('default', 0,
 
 -- Table structure `boosted_creature`
 CREATE TABLE IF NOT EXISTS `boosted_creature` (
+    `slot` tinyint(3) unsigned NOT NULL DEFAULT 1,
     `boostname` TEXT,
     `date` varchar(250) NOT NULL DEFAULT '',
     `raceid` varchar(250) NOT NULL DEFAULT '',
@@ -290,10 +291,11 @@ CREATE TABLE IF NOT EXISTS `boosted_creature` (
     `lookbody` int(11) NOT NULL DEFAULT 0,
     `lookaddons` int(11) NOT NULL DEFAULT 0,
     `lookmount` int(11) DEFAULT 0,
-    PRIMARY KEY (`date`)
+    PRIMARY KEY (`slot`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
-INSERT INTO `boosted_creature` (`boostname`, `date`, `raceid`) VALUES ('default', 0, 0);
+INSERT INTO `boosted_creature` (`slot`, `boostname`, `date`, `raceid`) VALUES (1, 'default', 0, 0);
+INSERT INTO `boosted_creature` (`slot`, `boostname`, `date`, `raceid`) VALUES (2, 'default', 0, 0);
 
 -- Tabble Structure `daily_reward_history`
 CREATE TABLE IF NOT EXISTS `daily_reward_history` (

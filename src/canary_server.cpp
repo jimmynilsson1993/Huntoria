@@ -411,7 +411,6 @@ void CanaryServer::loadModules() {
 	modulesLoadHelper(g_eventsScheduler().loadScheduleEventFromJson(), "json/eventscheduler/events.json");
 
 	g_game().loadBoostedCreature();
-	g_ioBosstiary().loadBoostedBoss();
 	g_ioprey().initializeTaskHuntOptions();
 	g_game().logCyclopediaStats();
 }
